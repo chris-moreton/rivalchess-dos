@@ -1,0 +1,2240 @@
+#include <stdio.h>
+#include <conio.h>
+#include <string.h>
+#include "rivaldef.h"
+#include "rivalgrf.h"
+#include "rivalchi.h"
+#include "rivaldat.h"
+#include "rivsergv.h"
+#include "rivsersh.h"
+#include "rivmouse.h"
+#include <stdlib.h>
+#include <dos.h>
+
+const c_delay_time=2;
+
+extern char icon, iconmenu, nomore;
+extern unsigned char mouseblank[], pointer[];
+extern int movepointer;
+extern char iteration, quiescence_depth;
+extern struct postype current;
+extern struct optiontype options, doptions;
+extern char startbrd[100];
+extern struct gametype game;
+extern signed int mousex, mousey;
+extern signed int relmousex,relmousey, oldmousex, oldmousey, pressed;
+
+unsigned char charblank[7*7+2]=
+{
+  23,23,23,23,23,23,23,
+  23,23,23,23,23,23,23,
+  23,23,23,23,23,23,23,
+  23,23,23,23,23,23,23,
+  23,23,23,23,23,23,23,
+  23,23,23,23,23,23,23,
+  23,23,23,23,23,23,23
+};
+
+
+unsigned char far screenbuffer[64000L];
+unsigned char tempsprite[111*21+2];
+unsigned char blanker1[877], blanker2[877];
+char  message[50][20];
+unsigned char chars, lines, screen;
+
+char squarecol[2][2]={{17,28},{98,12}};
+
+
+extern int kinglet_evaluate(struct postype *pos, char depth);
+
+FILE *datafile;
+
+
+void message_box(void)
+{
+   shadesqrxy(10,46,149,35,98,100,96);
+   shadesqrxy(20,51,129,25,98,96,100);
+   shadesqrxy(10,82,149,9,98,100,96);
+}
+
+void showchar(char chr, int posx, int posy)
+{
+  switch(chr)
+  {
+	 case '0':super_sprxy(posx, posy, c0); break;
+	 case '1':super_sprxy(posx, posy, c1); break;
+	 case '2':super_sprxy(posx, posy, c2); break;
+	 case '3':super_sprxy(posx, posy, c3); break;
+	 case '4':super_sprxy(posx, posy, c4); break;
+	 case '5':super_sprxy(posx, posy, c5); break;
+	 case '6':super_sprxy(posx, posy, c6); break;
+	 case '7':super_sprxy(posx, posy, c7); break;
+	 case '8':super_sprxy(posx, posy, c8); break;
+	 case '9':super_sprxy(posx, posy, c9); break;
+	 case 'A':super_sprxy(posx, posy, ca); break;
+	 case 'B':super_sprxy(posx, posy, cb); break;
+	 case 'C':super_sprxy(posx, posy, cc); break;
+	 case 'D':super_sprxy(posx, posy, cd); break;
+	 case 'E':super_sprxy(posx, posy, ce); break;
+	 case 'F':super_sprxy(posx, posy, cf); break;
+	 case 'G':super_sprxy(posx, posy, cg); break;
+	 case 'H':super_sprxy(posx, posy, ch); break;
+	 case 'N':super_sprxy(posx, posy, c4); break;
+	 case 'O':super_sprxy(posx, posy, c0); break;
+	 case 'S':super_sprxy(posx, posy, c5); break;
+	 case '-':super_sprxy(posx, posy, cmin); break;
+	 case '+':super_sprxy(posx, posy, cadd); break;
+	 case '*':super_sprxy(posx, posy, cstar); break;
+	 case '.':super_sprxy(posx, posy, cstop); break;
+	 case ' ':super_sprxy(posx, posy, space); break;
+	 default: break;
+  }
+}
+
+void show_iteration(char iteration)
+{
+    hide_mouse();
+    stringxy(191,140,"DEPTH",0);
+			  if (iteration<10)
+			  {
+			     showchar(iteration+48,240,139);
+			  } else
+			  {
+			     showchar(iteration/10+48,232,139);
+			     showchar(iteration%10+48,240,139);
+			  }
+    show_mouse();
+}
+
+void dsprxy(int x,int y,unsigned char far *sprpntr,char offset)
+{
+    sprxy(x, y, sprpntr, offset);
+}
+
+void display_piece(SQUARE sq, unsigned char piece)
+{
+	   if (options.chessset==REGULARSET)
+	   switch (piece)
+	   {
+			case 'p': sprxy((sq/10-1)*20+5,159-((sq%10)*20)+offy,(unsigned char *)pawn,options.bo,screenbuffer); break;
+			case 'b': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,bishop,options.bo,screenbuffer); break;
+			case 'n': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,knight,options.bo,screenbuffer); break;
+			case 'k': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,king,options.bo,screenbuffer); break;
+			case 'q': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,queen,options.bo,screenbuffer); break;
+			case 'r': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,rook,options.bo,screenbuffer); break;
+			case 'P': sprxy((sq/10-1)*20+5,159-((sq%10)*20)+offy,pawn,options.wo,screenbuffer); break;
+			case 'B': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,bishop,options.wo,screenbuffer); break;
+			case 'N': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,knight,options.wo,screenbuffer); break;
+			case 'K': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,king,options.wo,screenbuffer); break;
+			case 'Q': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,queen,options.wo,screenbuffer); break;
+			case 'R': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,rook,options.wo,screenbuffer); break;
+			default : break;
+		}  /* switch */
+		if (options.chessset==HUMANSET)
+		switch (piece)
+		{
+			case 'p': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,pawnh,options.bo,screenbuffer); break;
+			case 'b': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,bishoph,options.bo,screenbuffer); break;
+			case 'n': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,knighth,options.bo,screenbuffer); break;
+			case 'k': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,kingh,options.bo,screenbuffer); break;
+			case 'q': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,queenh,options.bo,screenbuffer); break;
+			case 'r': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,rookh,options.bo,screenbuffer); break;
+			case 'P': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,pawnh,options.wo,screenbuffer); break;
+			case 'B': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,bishoph,options.wo,screenbuffer); break;
+			case 'N': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,knighth,options.wo,screenbuffer); break;
+			case 'K': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,kingh,options.wo,screenbuffer); break;
+			case 'Q': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,queenh,options.wo,screenbuffer); break;
+			case 'R': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,rookh,options.wo,screenbuffer); break;
+			default : break;
+		}  /* switch */
+		if (options.chessset==SHAPESET)
+		switch (piece)
+		{
+			case 'p': sprxy((sq/10-1)*20+4,160-((sq%10)*20)+offy,pawns,options.bo,screenbuffer); break;
+			case 'b': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,bishops,options.bo,screenbuffer); break;
+			case 'n': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,knights,options.bo,screenbuffer); break;
+			case 'k': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,kings,options.bo,screenbuffer); break;
+			case 'q': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,queens,options.bo,screenbuffer); break;
+			case 'r': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,rooks,options.bo,screenbuffer); break;
+			case 'P': sprxy((sq/10-1)*20+4,160-((sq%10)*20)+offy,pawns,options.wo,screenbuffer); break;
+			case 'B': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,bishops,options.wo,screenbuffer); break;
+			case 'N': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,knights,options.wo,screenbuffer); break;
+			case 'K': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,kings,options.wo,screenbuffer); break;
+			case 'Q': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,queens,options.wo,screenbuffer); break;
+			case 'R': sprxy((sq/10-1)*20+5,160-((sq%10)*20)+offy,rooks,options.wo,screenbuffer); break;
+			default : break;
+		}  /* switch */
+}
+
+void display_square(SQUARE sq)
+{
+	 if ((sq/10+sq%10) % 2==0 && options.so==0) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,dbrown,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==1 && options.so==0) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,lbrown,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==0 && options.so==4) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,dbrown,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==1 && options.so==4) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,dbrowng,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==0 && options.so==2) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,greend,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==1 && options.so==2) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,blued,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==0 && options.so==3) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,blued,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==1 && options.so==3) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,dbrowng,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==0 && options.so==1) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,greend,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==1 && options.so==1) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,dbrowng,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==0 && options.so==5) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,dbrowng,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==1 && options.so==5) super_sprxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,lbrown,screenbuffer); else
+	 if ((sq/10+sq%10) % 2==0 && options.so==6) sqrxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,20,20,squarecol[0][0],screenbuffer); else
+	 if ((sq/10+sq%10) % 2==1 && options.so==6) sqrxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,20,20,squarecol[0][1],screenbuffer); else
+	 if ((sq/10+sq%10) % 2==0 && options.so==7) sqrxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,20,20,squarecol[1][0],screenbuffer); else
+	 if ((sq/10+sq%10) % 2==1 && options.so==7) sqrxy((sq/10-1)*20+offx,160-((sq%10)*20)+offy,20,20,squarecol[1][1],screenbuffer);
+};
+
+void display(struct postype brd, char all)
+{
+  int i,j;
+  static char oldbrd[100]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+  static char oldset;
+  static char oldcolw, oldcolb;
+  static char oldboard;
+  static char oldinv;
+  if (oldbrd[11]==0) oldset=oldcolw=oldcolb=oldboard=oldinv=99;
+  drawsquare(4,4,165,165,16,screenbuffer);
+  for (i=1; i<=8; i++)
+	for (j=1; j<=8; j++)
+	{
+	 if (oldbrd[i*10+j]!=brd.brd[i*10+j] || options.chessset!=oldset || options.wo!=oldcolw || options.bo!=oldcolb || options.so!=oldboard || options.inverted!=oldinv || all)
+	 {
+		 if (options.inverted) display_square((9-i)*10+(9-j)); else display_square(i*10+j);
+		 if (options.inverted)
+		 {
+			 if (brd.brd[i*10+j]!='-') display_piece((9-i)*10+(9-j),brd.brd[i*10+j]);
+		 } else
+		 {
+			 if (brd.brd[i*10+j]!='-') display_piece(i*10+j,brd.brd[i*10+j]);
+		 }
+		 oldbrd[i*10+j]=brd.brd[i*10+j];
+	 }
+	} /* j loop */
+	oldset=options.chessset;
+	oldcolw=options.wo;
+	oldcolb=options.bo;
+	oldboard=options.so;
+	oldinv=options.inverted;
+}
+
+void show_time_bar(int timer,int totaltime,char green)
+{
+	int temp;
+	int i;
+	if (timer>totaltime) timer=totaltime;
+	temp = (timer*42)/totaltime; //percentage of bar to be filled
+//      temp=temp*42.0;  //blocks needed
+	if (mousex>160 && mousex<180) hide_mouse();
+	if (green) sprxy(173, 175, botbar, options.bo); else
+			sprxy(173, 175, botbar, options.wo);
+	for (i=1; i<=temp-1; i++)
+		if (green) sprxy(173, 175-i*4, timebar, options.bo); else
+				sprxy(173, 175-i*4, timebar, options.wo);
+		if (green) sprxy(173,175-i*4, topbar, options.bo); else
+				sprxy(173,175-i*4, topbar, options.wo);
+	if (mousex>160 && mousex<180) show_mouse();
+}
+
+char legal_move(struct postype brd, SQUARE from, SQUARE to)
+/* can only be called from get_player_move because inversion is carried out internally */
+{
+	char legal, i;
+	struct movelist mvs, anycaps;
+	mvtype mv;
+	struct postype dumpos;
+	if (options.inverted)
+	{
+	  from=99-from;
+	  to=99-to;
+	}
+	anycaps=capture_get_children(&brd);
+	mvs=get_children(&brd);
+	legal=FALSE;
+	if (options.game==GIVEAWAY)
+	{
+	  for (i=1; i<=mvs.amount; i++)
+	  {
+	    if ((from==mvs.move[i].f && to==mvs.move[i].t))
+	    {
+	       legal=TRUE;
+	       if (anycaps.amount!=0 && brd.brd[to]=='-')
+		  return(-1); /* possible capture not attempted */ else
+		    return(TRUE);
+	    }
+	  }
+	} else
+	for (i=1; i<=mvs.amount; i++)
+	{
+	  if ((from==mvs.move[i].f && to==mvs.move[i].t))
+	  {
+		if (options.game==KINGLET)
+		{
+		  legal=TRUE;
+		} else
+		{
+		  mv.f=from; mv.t=to;
+		  legal=no_check_position(&brd,mv,&dumpos);
+		  if (!legal) return(-2); // checked
+		}
+	  }
+	}
+	return(legal);
+}
+
+void display_icon(char x, char y, char offset, unsigned char far *buffpntr)
+{
+ char sss[4], filename[12];
+ FILE *f;
+ if (iconmenu==0)
+ {
+  switch ( x + (y*4) )
+  {
+	case 0: super_sprxy(iconx+offset+5,icony+offset+4,help, buffpntr);
+			  break;
+	case 1:super_sprxy(iconx+offset+4+33+1,  icony+offset+4+4,  helpy, buffpntr); break;
+	case 2:super_sprxy(iconx+offset+66+3, icony+offset+3, invert, buffpntr);
+			 if (options.inverted) sprxy(iconx+offset+66+6,     icony+offset+6, tick,0, buffpntr);
+			 break;
+	case 3: super_sprxy(iconx+offset+99+3,icony+offset+4,         setup, buffpntr); break;
+	case 14:super_sprxy(iconx+offset+66+3,icony+offset+3+99, newgame, buffpntr); break;
+	case 4:sprxy(iconx+offset+4, icony+offset+33+4, circ, options.wo,buffpntr); break;
+	case 5:sprxy(iconx+offset+33+4, icony+offset+4+33, circ, options.bo,buffpntr); break;
+	case 6:super_sprxy(iconx+offset+66+3, icony+offset+3+33, fixedtime, buffpntr); break;
+	case 7:super_sprxy(iconx+offset+99+3, icony+offset+3+33, computer, buffpntr); break;
+	case 8:super_sprxy(iconx+offset+3,icony+offset+3+66,   playlast, buffpntr);
+			 break;
+	case 9:super_sprxy(iconx+offset+33+3,icony+offset+3+66,   takeback, buffpntr);
+			 break;
+	case 10:super_sprxy(iconx+offset+66+3,  icony+offset+66+3+2, playall, buffpntr);
+			  break;
+	case 11:super_sprxy(iconx+offset+99+3,   icony+offset+3+66+2, takeall, buffpntr);
+			  break;
+	case 12:super_sprxy(iconx+offset+3,icony+offset+3+99,   disksave, buffpntr); break;
+	case 13:super_sprxy(iconx+offset+33+3,icony+offset+3+99,   diskload, buffpntr); break;
+	case 15:sprxy(iconx+offset+99+3,   icony+offset+3+99+1, silarrow, 0,buffpntr); break;
+  }
+ } else
+ if (iconmenu==1)
+ {
+  switch ( x + (y*4) )
+  {
+	case 15: super_sprxy(iconx+offset+99+3, icony+offset+3+99, dosicon, buffpntr); break;
+	case 13: super_sprxy(iconx+offset+33+9,icony+offset+5+99, mouseicon, buffpntr);
+			 switch (options.sensitivity)
+			 {
+				 case HISENS  : letxy(232+offset, 20+offset+99, 'H', -47, buffpntr); break;
+				 case MEDSENS : letxy(232+offset, 20+offset+99, 'M', -47, buffpntr); break;
+				 case LOWSENS : letxy(232+offset, 20+offset+99, 'L', -47, buffpntr); break;
+			  }
+			  break;
+	case 1: super_sprxy(iconx+offset+3+33,     icony+offset+3, analysis, buffpntr);
+		if (options.analysis) sprxy(iconx+offset+33+6,     icony+offset+6, tick,0, buffpntr);
+		break;
+	case 2:sprxy(iconx+offset+66+3,icony+offset+3, book, 0,buffpntr);
+	       if (options.library) sprxy(iconx+offset+66+6,     icony+offset+6, tick,0, buffpntr);
+	       break;
+	case 3:super_sprxy(iconx+offset+4+99,  icony+offset+4,  ver, buffpntr); break;
+	case 5:super_sprxy(iconx+offset+3+33,icony+offset+4+33, sqcol, buffpntr); break;
+	case 6:sprxy(iconx+offset+3+66,icony+offset+3+33, piececol, options.wo,buffpntr); break;
+	case 7:sprxy(iconx+offset+3+99,icony+offset+3+33, piececol, options.bo,buffpntr); break;
+	case 4:super_sprxy(iconx+offset+3,  icony+offset+33+5,  chessset, buffpntr); break;
+	case 8:super_sprxy(iconx+offset+3,  icony+offset+66+3,  defopt, buffpntr); break;
+	case 9:super_sprxy(iconx+offset+3+33,  icony+offset+66+3,  optsave, buffpntr); break;
+	case 10:super_sprxy(iconx+offset+3+66,  icony+offset+66+3,  pieceslide, buffpntr);
+			  if (options.pieceslide) sprxy(iconx+offset+66+6,     icony+offset+6+66, tick,0, buffpntr);
+			  break;
+	case 11: sprxy(iconx+offset+2+99, icony+offset+2+66, ghost, 0, buffpntr);
+//		 if (options.deep_thought) sprxy(iconx+offset+6+99,     icony+offset+66+6, tick,0, buffpntr);
+		 break;
+
+	case 12:super_sprxy(iconx+offset+3,  icony+offset+99+3,  solve, buffpntr); break;
+	case 14:super_sprxy(iconx+offset+2+66,  icony+offset+99+2,  ghost, buffpntr);
+			  break;
+	case 0:sprxy(iconx+offset+9,   icony+offset+3+1, silarrowleft, 0,buffpntr); break;
+  }
+ } else
+ if (iconmenu==6)
+ {
+  if (options.chessset==REGULARSET)
+  switch ( x + (y*4) )
+  {
+	case 4:sprxy(iconx+offset+6,icony+offset+6+33,queen,options.bo,buffpntr); break;
+	case 5:sprxy(iconx+offset+6+33,icony+offset+6+33,knight,options.bo,buffpntr); break;
+	case 6:sprxy(iconx+offset+6+66,icony+offset+6+33,bishop,options.bo,buffpntr); break;
+	case 7:sprxy(iconx+offset+6+99,icony+offset+6+33,rook,options.bo,buffpntr); break;
+	case 0:sprxy(iconx+offset+6,icony+offset+6,pawn,options.bo,buffpntr); break;
+	case 1:sprxy(iconx+offset+6+33,icony+offset+6,king,options.bo,buffpntr); break;
+	case 2:sprxy(iconx+offset+3+66,icony+offset+4,cancel,0,buffpntr); break;
+	case 3:sprxy(iconx+offset+3+99,icony+offset+4,confirm,0,buffpntr); break;
+	case 10:sprxy(iconx+offset+3+66,icony+offset+6+66,rubout,options.bo,buffpntr); break;
+	case 11: sprxy(iconx+offset+4+99,icony+offset+7+66,leftarr,options.wo,buffpntr);
+		 sprxy(iconx+offset+4+114,icony+offset+7+66,rightarr,options.bo,buffpntr);
+		 break;
+	case 12:sprxy(iconx+offset+6,icony+offset+6+99,queen,options.wo,buffpntr); break;
+	case 13:sprxy(iconx+offset+6+33,icony+offset+6+99,knight,options.wo,buffpntr); break;
+	case 14:sprxy(iconx+offset+6+66,icony+offset+6+99,bishop,options.wo,buffpntr); break;
+	case 15:sprxy(iconx+offset+6+99,icony+offset+6+99,rook,options.wo,buffpntr); break;
+	case 8:sprxy(iconx+offset+6,icony+offset+6+66,pawn,options.wo,buffpntr); break;
+	case 9:sprxy(iconx+offset+6+33,icony+offset+6+66,king,options.wo,buffpntr); break;
+  }
+  if (options.chessset==HUMANSET)
+  switch ( x + (y*4) )
+  {
+	case 4:sprxy(iconx+offset+6,icony+offset+6+33,queenh,options.bo,buffpntr); break;
+	case 5:sprxy(iconx+offset+6+33,icony+offset+6+33,knighth,options.bo,buffpntr); break;
+	case 6:sprxy(iconx+offset+6+66,icony+offset+6+33,bishoph,options.bo,buffpntr); break;
+	case 7:sprxy(iconx+offset+6+99,icony+offset+6+33,rookh,options.bo,buffpntr); break;
+	case 0:sprxy(iconx+offset+6,icony+offset+6,pawnh,options.bo,buffpntr); break;
+	case 1:sprxy(iconx+offset+6+33,icony+offset+6,kingh,options.bo,buffpntr); break;
+	case 2:sprxy(iconx+offset+3+66,icony+offset+4,cancel,0,buffpntr); break;
+	case 3:sprxy(iconx+offset+3+99,icony+offset+4,confirm,0,buffpntr); break;
+	case 10:sprxy(iconx+offset+3+66,icony+offset+6+66,rubout,options.bo,buffpntr); break;
+	case 11: sprxy(iconx+offset+4+99,icony+offset+7+66,leftarr,options.wo,buffpntr);
+		 sprxy(iconx+offset+4+114,icony+offset+7+66,rightarr,options.bo,buffpntr);
+		 break;
+	case 12:sprxy(iconx+offset+6,icony+offset+6+99,queenh,options.wo,buffpntr); break;
+	case 13:sprxy(iconx+offset+6+33,icony+offset+6+99,knighth,options.wo,buffpntr); break;
+	case 14:sprxy(iconx+offset+6+66,icony+offset+6+99,bishoph,options.wo,buffpntr); break;
+	case 15:sprxy(iconx+offset+6+99,icony+offset+6+99,rookh,options.wo,buffpntr); break;
+	case 8:sprxy(iconx+offset+6,icony+offset+6+66,pawnh,options.wo,buffpntr); break;
+	case 9:sprxy(iconx+offset+6+33,icony+offset+6+66,kingh,options.wo,buffpntr); break;
+  }
+  if (options.chessset==SHAPESET)
+  switch ( x + (y*4) )
+  {
+	case 4:sprxy(iconx+offset+6,icony+offset+6+33,queens,options.bo,buffpntr); break;
+	case 5:sprxy(iconx+offset+6+33,icony+offset+6+33,knights,options.bo,buffpntr); break;
+	case 6:sprxy(iconx+offset+6+66,icony+offset+6+33,bishops,options.bo,buffpntr); break;
+	case 7:sprxy(iconx+offset+6+99,icony+offset+6+33,rooks,options.bo,buffpntr); break;
+	case 0:sprxy(iconx+offset+6,icony+offset+6,pawns,options.bo,buffpntr); break;
+	case 1:sprxy(iconx+offset+6+33,icony+offset+6,kings,options.bo,buffpntr); break;
+	case 2:sprxy(iconx+offset+3+66,icony+offset+4,cancel,0,buffpntr); break;
+	case 3:sprxy(iconx+offset+3+99,icony+offset+4,confirm,0,buffpntr); break;
+	case 10:sprxy(iconx+offset+3+66,icony+offset+6+66,rubout,options.bo,buffpntr); break;
+	case 11: sprxy(iconx+offset+4+99,icony+offset+7+66,leftarr,options.wo,buffpntr);
+		 sprxy(iconx+offset+4+114,icony+offset+7+66,rightarr,options.bo,buffpntr);
+		 break;
+	case 12:sprxy(iconx+offset+6,icony+offset+6+99,queens,options.wo,buffpntr); break;
+	case 13:sprxy(iconx+offset+6+33,icony+offset+6+99,knights,options.wo,buffpntr); break;
+	case 14:sprxy(iconx+offset+6+66,icony+offset+6+99,bishops,options.wo,buffpntr); break;
+	case 15:sprxy(iconx+offset+6+99,icony+offset+6+99,rooks,options.wo,buffpntr); break;
+	case 8:sprxy(iconx+offset+6,icony+offset+6+66,pawns,options.wo,buffpntr); break;
+	case 9:sprxy(iconx+offset+6+33,icony+offset+6+66,kings,options.wo,buffpntr); break;
+  }
+ } else
+ if (iconmenu==3)
+ {
+ }
+  if (iconmenu>=4 && iconmenu<=5)
+  {
+	switch( x + (y*4) )
+	{
+	   case 0:sprxy(iconx+offset+3,icony+offset+4,cancel,0,buffpntr); break;
+	  default: sprxy(iconx+offset+5+(x*33),icony+offset+5+(y*33),disk,0,buffpntr);
+		   strcpy(filename,"RIVAL\0");
+		   if (x+(y*4)<10)
+		   {
+			filename[5]=(x+(y*4))+48;
+			filename[6]='\0';
+		   } else
+		   {
+			filename[5]=(x+(y*4))/10+48;
+			filename[6]=(x+(y*4))%10+48;
+			filename[7]='\0';
+		   }
+		   strcat(filename, ".SAV");
+		   if ((f=fopen(filename,"r"))!=NULL)
+		   {
+		      switch(fgetc(f)-65)
+		      {
+			 case REGULARCHESS:letxy(iconx+offset+13+(x*33),icony+offset+9+(y*33),'R',-47,buffpntr); break;
+			 case KINGLET:letxy(iconx+offset+13+(x*33),icony+offset+9+(y*33),'K',-47,buffpntr); break;
+			 case GIVEAWAY:letxy(iconx+offset+13+(x*33),icony+offset+9+(y*33),'G',-47,buffpntr); break;
+			 case CHECKLESS:letxy(iconx+offset+13+(x*33),icony+offset+9+(y*33),'C',-47,buffpntr); break;
+			 case SHATRANJ:letxy(iconx+offset+13+(x*33),icony+offset+9+(y*33),'S',-47,buffpntr);
+		      }
+		   }
+		   fclose(f);
+		   break;
+	}
+  }
+} // function display_icon
+
+void selected(char icon, int pointerx, int pointery)
+{
+   int ix, iy;
+   ix=iconx+(icon%4)*33;
+   iy=icony+(icon/4)*33;
+   if (pointerx==0 && pointery==0)
+   {
+	 pointerx=ix+14;
+	 pointery=iy+14;
+   }
+	makesprite(ix,iy,ix+34,iy+34,(unsigned char  *)tempsprite);
+	super_sprxy(ix+1,iy+1,outty,screenbuffer);
+	display_icon(icon%4,icon/4,1,screenbuffer);
+   sprxy(pointerx,pointery,pointer,0,screenbuffer);
+   windowtovid(ix,iy,ix+33,iy+33,screenbuffer);
+	wait_till_released();
+	sprxy(ix,iy,tempsprite,0,screenbuffer);
+   windowtovid(ix,iy,ix+34,iy+34,screenbuffer);
+	sprxy(pointerx,pointery,mouseblank,0,screenbuffer);
+	sprxy(pointerx,pointery,mouseblank,0);
+}
+
+
+void showscreen(void)
+{
+  char ch;
+  sqrxy(6,47,159,80,23);
+  for (ch=2; ch<lines; ch++)
+  {
+	 if (ch>=(8*screen)+2 && ch<(8*screen)+10) stringxy(10,47+(ch*10-((8*screen)+2)*10),message[ch], 0);
+  }
+}
+
+int get_message(char helpnum)
+{
+	 FILE *helpfile;
+	 int i;
+	 char ch;
+	 helpfile=fopen("RIVAL.HLP","r");
+	 if (helpfile!=NULL)
+	 {
+	  screen=0;
+	  lines=0;
+	  for (i=0; i<helpnum; i++)
+	  {
+		 ch=' ';
+		 while (ch!='-') ch=((fgetc(helpfile) ^ 25) - 1);
+	  } // we are now at the start of the relevant help item
+	  ch=((fgetc(helpfile) ^ 25) - 1); // new line
+	  ch=((fgetc(helpfile) ^ 25) - 1); // first char
+	  while (ch!='-')
+	  {
+		 chars=0;
+		 for (i=0; i<20; i++) message[lines][i]='\0';
+		 while (ch!=10)
+		 {
+			 if (chars<19) message[lines][chars++]=ch;
+			 ch=((fgetc(helpfile) ^ 25) - 1);
+		 }
+		 lines+=(lines==0) ? 2 : 1;  // add an extra line below the heading
+		 ch=((fgetc(helpfile) ^ 25) - 1);
+	  }
+	  message[1][0]='\0';
+	  message[lines][0]='*';
+	  // message[lines][chars] is now complete
+	  sqrxy(6,37,159,47,23);
+	  stringxy(10,37,message[0], 47); // title in red
+	 }
+	 fclose(helpfile);
+	 if (helpfile==NULL) return(0); else return(1);
+}
+
+void display_menu(void)
+{
+  int i, j;
+  for (i=0; i<=3; i++)
+	 for (j=0; j<=3; j++)
+	 {
+		super_sprxy(iconx+(i*33),icony+(j*33),outty,screenbuffer);
+		display_icon(i,j,0,screenbuffer);
+	 }
+}
+
+void menutovid(void)
+{
+  windowtovid(184,icony,319,icony+134,screenbuffer);
+  windowtovid(5,170,45,199,screenbuffer);
+  windowtovid(130,170,170,199,screenbuffer);
+}
+
+void flagkings(void)
+{
+	SQUARE sq1, sq2;
+	sq1=current.wking[0];
+	sq2=current.bking[0];
+	if (!options.inverted)
+	{
+	  sprxy((sq1/10-1)*20+5,160-((sq1%10)*20)+offy,draw,0);
+	  sprxy((sq2/10-1)*20+5,160-((sq2%10)*20)+offy,draw,0);
+	} else
+	{
+	  sprxy(((99-sq1)/10-1)*20+5,160-(((99-sq1)%10)*20)+offy,draw,0);
+	  sprxy(((99-sq2)/10-1)*20+5,160-(((99-sq2)%10)*20)+offy,draw,0);
+	}
+}
+
+char over(void)
+{
+  struct movelist mvs;
+  struct postype dumpos;
+  SQUARE sq1;
+  char i, legal;
+  char lc, l[16], j;
+  if (previous_pos(current, game, 2)==TRUE)
+  {
+	flagkings();
+	// 3 repetitions
+	message_box();
+	stringxy(66,55,"THREE",0,(unsigned char *)vidmemstart, 98);
+	stringxy(44,65,"REPETITIONS",0,(unsigned char *)vidmemstart, 98);
+	stringxy(50,84,"GAME OVER",0,(unsigned char *)vidmemstart, 98);
+	return(TRUE);
+  }
+  if (options.game==KINGLET)
+  {
+	 if (kinglet_evaluate(&current,0)==-10000)
+	 {
+		message_box();
+		if (current.mvr=='w')
+		  stringxy(46,60,"BLACK WINS",0,(unsigned char *)vidmemstart, 98); else
+		  stringxy(46,60,"WHITE WINS",0,(unsigned char *)vidmemstart, 98);
+		stringxy(50,84,"GAME OVER",0,(unsigned char *)vidmemstart, 98);
+		return(TRUE);
+	 }
+	 else return(FALSE);
+  }
+  if (options.game==REGULARCHESS)
+  {
+    mvs=get_children(&current);
+    legal=mvs.amount;
+    for (i=1; i<=mvs.amount; i++)
+    {
+	 if (!no_check_position(&current,mvs.move[i],&dumpos)) legal--;
+    }
+    if (legal==0)
+    {
+	if ((current.mvr=='w' && check(&current,current.wking[0])) || (current.mvr=='b' && check(&current,current.bking[0])))
+	{
+	  if (current.mvr=='w') sq1=current.wking[0]; else sq1=current.bking[0];
+	  if (!options.inverted)
+	  sprxy((sq1/10-1)*20+5,160-((sq1%10)*20)+offy,splat,0); else
+	  sprxy(((99-sq1)/10-1)*20+5,160-(((99-sq1)%10)*20)+offy,splat,0);
+	  // checkmate
+	  message_box();
+	  stringxy(50,55,"CHECKMATE",0,(unsigned char *)vidmemstart, 98);
+		if (current.mvr=='w')
+		  stringxy(46,65,"BLACK WINS",0,(unsigned char *)vidmemstart, 98); else
+		  stringxy(46,65,"WHITE WINS",0,(unsigned char *)vidmemstart, 98);
+	  stringxy(50,84,"GAME OVER",0,(unsigned char *)vidmemstart, 98);
+	} else
+	{
+	  flagkings();
+	  message_box();
+	  stringxy(51,60,"STALEMATE",0,(unsigned char *)vidmemstart, 98);
+	  stringxy(50,84,"GAME OVER",0,(unsigned char *)vidmemstart, 98);
+	  // stalemate
+	}
+	return(TRUE);
+    }
+    return(FALSE);
+  }
+  if (options.game==GIVEAWAY)
+  {
+    if (giveaway_evaluate(&current,0)==10000)
+    {
+      message_box();
+      if (current.mvr=='b')
+	  stringxy(46,60,"BLACK WINS",0,(unsigned char *)vidmemstart, 98); else
+	  stringxy(46,60,"WHITE WINS",0,(unsigned char *)vidmemstart, 98);
+      stringxy(50,84,"GAME OVER",0,(unsigned char *)vidmemstart, 98);
+      return(TRUE);
+    } else
+    {
+      mvs=get_children(&current);
+      if (mvs.amount==0)
+      {
+	  message_box();
+	  stringxy(51,60,"STALEMATE",0,(unsigned char *)vidmemstart, 98);
+	  stringxy(50,84,"GAME OVER",0,(unsigned char *)vidmemstart, 98);
+	  return(TRUE);
+      }
+    }
+    return(FALSE);
+  }
+  if (options.game==SHATRANJ)
+  {
+    mvs=get_children(&current);
+    legal=mvs.amount;
+    for (i=1; i<=mvs.amount; i++)
+    {
+	 if (!no_check_position(&current,mvs.move[i],&dumpos)) legal--;
+    }
+    if (legal==0)
+    {
+	if ((current.mvr=='w' && check(&current,current.wking[0])) || (current.mvr=='b' && check(&current,current.bking[0])))
+	{
+	  if (current.mvr=='w') sq1=current.wking[0]; else sq1=current.bking[0];
+	  if (!options.inverted)
+	  sprxy((sq1/10-1)*20+5,160-((sq1%10)*20)+offy,splat,0); else
+	  sprxy(((99-sq1)/10-1)*20+5,160-(((99-sq1)%10)*20)+offy,splat,0);
+	  // checkmate
+	  message_box();
+	  stringxy(50,55,"CHECKMATE",0,(unsigned char *)vidmemstart, 98);
+		if (current.mvr=='w')
+		  stringxy(46,65,"BLACK WINS",0,(unsigned char *)vidmemstart, 98); else
+		  stringxy(46,65,"WHITE WINS",0,(unsigned char *)vidmemstart, 98);
+	  stringxy(50,84,"GAME OVER",0,(unsigned char *)vidmemstart, 98);
+	} else
+	{
+	  flagkings();
+	  message_box();
+	  stringxy(51,60,"STALEMATE",0,(unsigned char *)vidmemstart, 98);
+	  stringxy(50,84,"GAME OVER",0,(unsigned char *)vidmemstart, 98);
+	  // stalemate
+	}
+	return(TRUE);
+    }
+
+    if (shatranj_evaluate(&current, 0)==-10000)
+    {  // bare king
+       message_box();
+	  stringxy(50,55,"BARE KING",0,(unsigned char *)vidmemstart, 98);
+		if (current.mvr=='w')
+		  stringxy(46,65,"BLACK WINS",0,(unsigned char *)vidmemstart, 98); else
+		  stringxy(46,65,"WHITE WINS",0,(unsigned char *)vidmemstart, 98);
+       stringxy(50,84,"GAME OVER",0,(unsigned char *)vidmemstart, 98);
+       return(TRUE);
+    }
+    return(FALSE);
+  }
+  return(FALSE);
+}
+
+void rival_help(char helpnum)
+{
+  unsigned char ix, iy;
+  signed char leave=0;
+  sprxy(oldmousex,oldmousey,mouseblank,0); // erase mouse pointer
+  windowtovid(1,1,180,10,screenbuffer);
+  windowtovid(1,160,180,180,screenbuffer);
+  windowtovid(1,1,10,180,screenbuffer);
+  windowtovid(160,1,180,180,screenbuffer);
+  shadesqrxy(4,4,161,161,23,25,21);
+  sprxy(10,10,rivalogo,0);
+  super_sprxy(19,130,outty);
+  super_sprxy(52,130,outty);
+  super_sprxy(85,130,outty);
+  super_sprxy(118,130,outty);
+  sprxy(19+4,130+4,helpback,0);
+  sprxy(52+4,130+4,helpforward,0);
+  sprxy(85+10,130+5,generalhelp,0);
+  sprxy(118+3,130+3,exithelp,0);
+  if (get_message(helpnum)!=0)
+  {
+	 showscreen();
+	 show_mouse();
+	 while (!leave)
+	 {
+		 process_mouse();
+		 if (pressed==1)
+		 {
+			if (mousex>iconx && mousex<iconx+132 && mousey>icony && mousey<icony+132)
+			{
+			    leave=TRUE;
+/*				icon=((mousex-iconx)/33);
+				icon+=(((mousey-icony)/33)*4);
+				selected(icon,mousex,mousey);
+				icon+=(16*iconmenu);
+				switch (icon)
+				{
+					case 15:iconmenu=1; display_menu(); menutovid(); show_mouse(); break;
+					case 7:iconmenu=2; display_menu(); menutovid(); show_mouse(); break;
+					case 47:iconmenu=0; display_menu(); menutovid(); show_mouse(); break;
+					case 16:iconmenu=0; display_menu(); menutovid(); show_mouse(); break;
+				} */
+			} else
+			if (mousex>19 && mousex<151 && mousey>130 && mousey<163)
+			{
+				 icon=(mousex-19)/33;
+				 ix=icon*33+20;
+				 iy=131;
+				 hide_mouse();
+				 makesprite(ix,iy,ix+33,iy+33, tempsprite);
+				 drawsquare(ix,iy,ix+30,iy+30,23);
+				 shadesqrxy(ix,iy,31,31,23,21,25);
+				 switch (icon)
+				 {
+				    case 0: sprxy(19+4+1,130+4+1,helpback,0); break;
+				    case 1: sprxy(52+4+1,130+4+1,helpforward,0); break;
+				    case 2: sprxy(85+10+1,130+5+1,generalhelp,0); break;
+				    case 3: sprxy(118+3+1,130+3+1,exithelp,0);
+
+				 }
+				 show_mouse();
+				 wait_till_released();
+				 hide_mouse();
+				 sprxy(ix,iy,tempsprite,0);
+				 show_mouse();
+				 switch (icon)
+				 {
+					 case 0:if (screen>0) screen--; break;
+					 case 1:if (lines>(screen+1)*8+2) screen++; break;
+					 case 2:get_message(70); wait_till_released(); break;
+					 case 3:leave=TRUE; break;
+				 }
+				 showscreen();
+			}
+		 } else // pressed==1
+		 if (pressed==2)
+		 {
+			 if (mousex>iconx && mousex<iconx+132 && mousey>icony && mousey<icony+132)
+			 {
+				  icon=((mousex-iconx)/33);
+				  icon+=(((mousey-icony)/33)*4);
+				  selected(icon,mousex,mousey);
+				  icon+=(16*iconmenu);
+				  get_message(icon);
+				  showscreen();
+			 } else
+			 if (mousex>iconx && mousex<iconx+132 && mousey>icony+132 && mousey<190)
+			 {
+				  get_message(64);
+				  showscreen();
+				  wait_till_released();
+			 } else
+			 if (mousex>10 && mousex<40 && mousey>170 && options.whiteplayer==USER)
+			 {
+				  get_message(65);
+				  showscreen();
+				  wait_till_released();
+			 }
+			 if (mousex>10 && mousex<40 && mousey>170 && options.whiteplayer==PROGRAM)
+			 {
+				  get_message(66);
+				  showscreen();
+				  wait_till_released();
+			 } else
+			 if (mousex>140 && mousex<165 && mousey>170 && options.blackplayer==USER)
+			 {
+				  get_message(67);
+				  showscreen();
+				  wait_till_released();
+			 } else
+			 if (mousex>140 && mousex<165 && mousey>170 && options.blackplayer==PROGRAM)
+			 {
+				  get_message(68);
+				  showscreen();
+				  wait_till_released();
+			 } else
+			 if (mousex>165 && mousex<iconx && mousey>10 && mousey<180)
+			 {
+				  get_message(69);
+				  showscreen();
+				  wait_till_released();
+			 }
+		 } // if pressed==2
+	 } // while !leave
+  } else // if get_message...
+  {
+	 strcpy(message[0],"SORRY\0");
+	 strcpy(message[1],"HELP FILE NOT FOUND\0");
+	 stringxy(10,40,message[0],0);
+	 stringxy(10,50,message[1],0);
+	 show_mouse();
+	 pressed=0;
+	 while(!pressed) process_mouse();
+  }
+  windowtovid(4,4,319,199,screenbuffer);
+//  over();
+  show_mouse();  // ensures that new background is grabbed before redisplaying pointer
+}
+
+mvtype get_player_move(struct postype brd, char game_over)
+{
+  mvtype mv, altermv;
+  char illegal, changed, no_cursor, last_was_mouse_selected, message_up=1;
+  SQUARE curs, oldcurs;
+  struct postype newpos;
+  show_mouse();
+  illegal=TRUE;
+  curs=54;
+  oldcurs=curs;
+  last_was_mouse_selected=FALSE;
+  mv.f=0;
+  no_cursor=TRUE;
+  changed=FALSE;
+  while (illegal)
+  {
+	if (!last_was_mouse_selected) mv.f=0;
+	mv.t=0;
+	while(mv.t==0)
+	{
+	  if (changed)
+	  {
+		 display_square(curs); if (!options.inverted) display_piece(curs, brd.brd[curs]); else display_piece(curs, brd.brd[99-curs]);
+		 display_square(oldcurs); if (!options.inverted) display_piece(oldcurs, brd.brd[oldcurs]); else display_piece(oldcurs, brd.brd[99-oldcurs]);
+	  }
+	  if (mv.f!=0 && changed)
+	  { /* f!=0 */
+		display_square(mv.f);
+		if (last_was_mouse_selected)
+		{
+		  sprxy((mv.f/10-1)*20+offx,160-(mv.f%10)*20+offy,cursprite,0,screenbuffer);
+		  if (!options.inverted) display_piece(mv.f, brd.brd[mv.f]); else display_piece(mv.f, brd.brd[99-mv.f]);
+		}
+		if (mv.f==curs && !no_cursor) sprxy((curs/0-1)*20+offx,160-(curs%10)*20+offy,cursprite,0,screenbuffer);
+		altermv.f=mv.f;
+		altermv.t=curs;
+		alter(&brd,altermv,&newpos);
+		if (mv.f!=curs)
+		{
+		     message_up=legal_move(brd, mv.f, curs);
+		     if (message_up==0 || (options.messages==0 && message_up<0))
+		     {
+			if (!options.inverted) display_piece(curs,brd.brd[mv.f]); else display_piece(curs,brd.brd[99-mv.f]);
+			sprxy((curs/10-1)*20+offx,160-(curs%10)*20+offy,cross,0,screenbuffer);
+		     }
+		}
+	  } /* if mv.f==0 (else clause) */
+	  if (changed)
+	  {
+		windowtovid(0,0,180,180,screenbuffer);
+//		over();
+		show_mouse();
+		changed=FALSE;
+		if (message_up<0 && options.messages==1)
+		{
+		   hide_mouse();
+		   message_box();
+		   stringxy(40,84,"CLICK MOUSE",0,(unsigned char *)vidmemstart, 98);
+		   switch(message_up)
+		   {
+		      case -1:stringxy(23,60,"YOU MUST CAPTURE",0,(unsigned char *)vidmemstart, 98); break;
+		      case -2:stringxy(43,55,"MOVE LEAVES",0,(unsigned char *)vidmemstart, 98);
+			      stringxy(35,65,"KING IN CHECK",0,(unsigned char *)vidmemstart, 98);
+			      break;
+		   }
+		   show_mouse();
+		   pressed=0;
+		   while (!pressed) process_mouse();
+		   wait_till_released();
+		   hide_mouse();
+		   windowtovid(0,0,180,180,screenbuffer);
+		   show_mouse();
+		   message_up=1;
+		}
+	  }
+	  process_mouse();
+	  if (pressed==1)
+	  {
+		if (mousex>5 && mousex<165 && mousey>5 && mousey<165)
+		{
+		  wait_till_released();
+//		  if (!over())
+		  if (!game_over)
+		  {
+		     display_square(curs);
+		     if (!options.inverted) display_piece(curs, brd.brd[curs]); else display_piece(curs, brd.brd[99-curs]);
+		     windowtovid((curs/10-1)*20+5,(160-(curs%10)*20),(curs/10-1)*20+40,(195-(curs%10)*20),screenbuffer);
+		     show_mouse();
+		     changed=TRUE;
+		     if (mv.f==0)
+		     {
+			curs=(((mousex-5)/20)+1)*10;
+			curs+=(9-(((mousey-5)/20)+1));
+			if ((brd.brd[curs]!='-' && !options.inverted) ||
+				(brd.brd[99-curs]!='-' && options.inverted))
+			{
+				if ( (!options.inverted && ((current.mvr=='b' && brd.brd[curs]>'a') || (current.mvr=='w' && brd.brd[curs]<'Z')))
+				  || (options.inverted && ((current.mvr=='b' && brd.brd[99-curs]>'a') || (current.mvr=='w' && brd.brd[99-curs]<'Z'))) )
+				{
+					mv.f=curs;
+					no_cursor=TRUE;
+				}
+			}
+			last_was_mouse_selected=TRUE;
+		     } else // mv.f==0
+		     {
+			mv.t=(((mousex-5)/20)+1)*10;
+			mv.t+=(9-(((mousey-5)/20)+1));
+			curs=mv.t;
+			if ( (!options.inverted && brd.brd[curs]>'a' && brd.mvr=='b')
+				||(options.inverted && brd.brd[99-curs]>'a' && brd.mvr=='b')
+				)
+				{
+				  oldcurs=mv.f;
+				  mv.f=mv.t;
+				  mv.t=0;
+				} else
+				if ( (!options.inverted && brd.brd[curs]>'A' && brd.brd[curs]<'Z' && brd.mvr=='w')
+				  || (options.inverted && brd.brd[99-curs]>'A' && brd.brd[99-curs]<'Z' && brd.mvr=='w')
+					)
+				{
+				  oldcurs=mv.f;
+				  mv.f=mv.t;
+				  mv.t=0;
+				}
+				last_was_mouse_selected=TRUE;
+		     } // if move.f==0
+		  } else // if !over()
+		  {
+		    hide_mouse();
+		    windowtovid(5, 5, 180, 180, screenbuffer);
+		    show_mouse();
+		  }
+		} else // mousex>5 etc...
+		if (mousex>iconx && mousex<iconx+132 && mousey>icony && mousey<icony+132)
+		{
+		   icon=((mousex-iconx)/33);
+		   icon+=(((mousey-icony)/33)*4);
+		   selected(icon,mousex,mousey);
+		   mv.t=icon+100;
+		   if (mv.f!=0) // kill cursor under piece
+		   {
+		     display_square(mv.f); if (!options.inverted) display_piece(mv.f, brd.brd[mv.f]); else display_piece(mv.f, brd.brd[99-mv.f]);
+		   }
+		   // kill cursor if an illegal attempt was made
+		   display_square(curs); if (!options.inverted) display_piece(curs, brd.brd[curs]); else display_piece(curs, brd.brd[99-curs]);
+		   display_square(oldcurs); if (!options.inverted) display_piece(oldcurs, brd.brd[oldcurs]); else display_piece(oldcurs, brd.brd[99-oldcurs]);
+		} else
+		if (mousex>iconx+99 && mousey>icony+144 && mousey<icony+179)
+		{
+		   if (mousey<icony+161) mv.t=200; else mv.t=201;
+		   sprxy(oldmousex,oldmousey,mouseblank,0);
+		}
+	  } // pressed==1
+	  else
+	  if (pressed==2)
+	  {
+		 wait_till_released();
+		 if (mousex>iconx && mousex<iconx+132 && mousey>icony && mousey<icony+132) rival_help(((mousex-iconx)/33)+(((mousey-icony)/33)*4)+(iconmenu*16)); else
+		 if (mousex>iconx && mousex<iconx+132 && mousey>icony+132 && mousey<190) rival_help(64); else
+		 if (mousex>10 && mousex<40 && mousey>170 && options.whiteplayer==USER) rival_help(65); else
+		 if (mousex>10 && mousex<40 && mousey>170 && options.whiteplayer==PROGRAM) rival_help(66); else
+		 if (mousex>140 && mousex<165 && mousey>170 && options.blackplayer==USER) rival_help(67); else
+		 if (mousex>140 && mousex<165 && mousey>170 && options.blackplayer==PROGRAM) rival_help(68); else
+		 if (mousex>165 && mousex<iconx && mousey>10 && mousey<180) rival_help(69); else
+		 rival_help(70);
+	  } // pressed==2
+	} /* while mv.t==0 */
+	if (mv.t>=100)
+	{
+	  illegal=FALSE;
+	  if (mv.t<200) mv.t+=(16*iconmenu);
+	} else
+	{
+	  if (legal_move(brd, mv.f, mv.t)==1)
+	  {
+		if (options.inverted)
+		{
+		  mv.f=99-mv.f;
+		  mv.t=99-mv.t;
+		}
+		illegal=FALSE;
+	  }
+	}
+	if (illegal) display(brd, TRUE);
+ } /* while illegal */
+ if (mv.t<100)
+ {
+	 mv.lastwin=brd.brd[mv.t];
+	 alter(&brd,mv,&newpos);
+	 if (brd.mvr=='w')
+	 mv.check=check(&newpos,newpos.bking[0]); else
+	 mv.check=check(&newpos,newpos.wking[0]);
+	 if (options.game==KINGLET) mv.check=FALSE;
+ }
+ return(mv);
+}
+
+void initialise(char boardarray[100])
+{
+  SQUARE sq;
+  struct postype initial;
+  char piece;
+  initial.mvr=boardarray[99];
+  initial.en_pawn=99;
+  initial.wrook1_moved=0;
+  initial.wrook2_moved=0;
+  initial.brook1_moved=0;
+  initial.brook2_moved=0;
+  initial.wking_moved=0;
+  initial.bking_moved=0;
+  initial.black_castled=FALSE;
+  initial.white_castled=FALSE;
+  initial.bmat=0;
+  initial.wmat=0;
+  initial.total_bmat=0;
+  initial.total_wmat=0;
+  initial.brookcount=-1;
+  initial.wrookcount=-1;
+  initial.bkingcount=-1;
+  initial.wkingcount=-1;
+  initial.wbishcount=-1;
+  initial.bbishcount=-1;
+  initial.wqueencount=-1;
+  initial.bqueencount=-1;
+  initial.bknightcount=-1;
+  initial.wknightcount=-1;
+  initial.bpawncount=-1;
+  initial.wpawncount=-1;
+  for (sq=0; sq<=99; sq++)
+	{
+		if (sq%10>0 && sq%10<9 && sq/10>0 && sq/10<9)
+		{
+		 initial.brd[sq]=boardarray[sq];
+		 piece=initial.brd[sq];
+		 switch (piece)
+		 {
+			case 'k' : initial.bking[++initial.bkingcount]=sq; initial.total_wmat+=300; break;
+			case 'K' : initial.wking[++initial.wkingcount]=sq; initial.total_bmat+=300; break;
+			case 'R' : initial.wmat+=5; initial.total_wmat+=500; initial.wrook[++initial.wrookcount]=sq; break;
+			case 'B' : initial.wmat+=3; initial.total_wmat+=325; initial.wbish[++initial.wbishcount]=sq; break;
+			case 'N' : initial.wmat+=3; initial.total_wmat+=320; initial.wknight[++initial.wknightcount]=sq; break;
+			case 'r' : initial.bmat+=5; initial.total_bmat+=500; initial.brook[++initial.brookcount]=sq; break;
+			case 'b' : initial.bmat+=3; initial.total_bmat+=325; initial.bbish[++initial.bbishcount]=sq; break;
+			case 'n' : initial.bmat+=3; initial.total_bmat+=320; initial.bknight[++initial.bknightcount]=sq; break;
+			case 'Q' : initial.total_wmat+=900; initial.wqueen[++initial.wqueencount]=sq; break;
+			case 'q' : initial.total_bmat+=900; initial.bqueen[++initial.bqueencount]=sq; break;
+			case 'P' : initial.total_wmat+=100; initial.wpawn[++initial.wpawncount]=sq; break;
+			case 'p' : initial.total_bmat+=100; initial.bpawn[++initial.bpawncount]=sq; break;
+		 }
+		} else
+		initial.brd[sq]='[';
+	}
+  game.movenum=0;
+  current=initial;
+  game.whites[0]=0;
+  game.blacks[0]=0;
+  game.firstpos=initial;
+  game.lastmove=0;
+  movepointer=0;
+}
+
+
+char legal_position(char brd[100])
+{
+  char i,j;
+  char wkings=0, bkings=0, illegalpawn, nonmoverchecked, overflow;
+  char wqueens=0, bqueens=0, wknights=0, bknights=0, wbishops=0, bbishops=0, wrooks=0, brooks=0, bpawns=0, wpawns=0;
+  illegalpawn=FALSE;
+  for (i=1; i<=8; i++)
+	 for (j=1; j<=8; j++)
+	 {
+		if (brd[i*10+j]=='k') bkings++;
+		if (brd[i*10+j]=='K') wkings++;
+		if (brd[i*10+j]=='p') bpawns++;
+		if (brd[i*10+j]=='P') wpawns++;
+		if (brd[i*10+j]=='n') bknights++;
+		if (brd[i*10+j]=='N') wknights++;
+		if (brd[i*10+j]=='b') bbishops++;
+		if (brd[i*10+j]=='B') wbishops++;
+		if (brd[i*10+j]=='q') bqueens++;
+		if (brd[i*10+j]=='Q') wqueens++;
+		if (brd[i*10+j]=='r') brooks++;
+		if (brd[i*10+j]=='R') wrooks++;
+		if (j==1 && brd[i*10+1]=='p') illegalpawn=TRUE;
+		if (j==1 && brd[i*10+1]=='P') illegalpawn=TRUE;
+		if (j==8 && brd[i*10+8]=='p') illegalpawn=TRUE;
+		if (j==8 && brd[i*10+8]=='P') illegalpawn=TRUE;
+	 }
+  if (bkings==1 && wkings==1 && !illegalpawn &&
+	 wknights<9 && bknights<9 && brooks<9 && wrooks<9 && wpawns<9 && bpawns<9 && bbishops<9 && wbishops<9 && wqueens<9 && bqueens<9)
+  {
+     initialise(brd);
+     if (current.mvr=='w') nonmoverchecked=check(&current, current.bking[0]);
+     if (current.mvr=='b') nonmoverchecked=check(&current, current.wking[0]);
+     return(!nonmoverchecked);
+  } else
+  return(FALSE);
+}
+
+char confirmation(char *message)
+{
+	int canx=iconx+20, cany=icony+90;
+	int conx=iconx+82, cony=icony+90, ix, iy;
+	int message_pos;
+	char yesno=99;
+	shadesqrxy(iconx,icony,132,132,23,25,21);
+	sprxy(iconx+55,icony+10,question,0);
+	super_sprxy(canx, cany , outty);
+	super_sprxy(conx, cony , outty);
+	sprxy(canx+3, cany+4 ,cancel,0);
+	sprxy(conx+3, cony+4 ,confirm,0);
+	message_pos=(strlen(message)*8);
+	message_pos/=2;
+	message_pos=66-message_pos;
+	stringxy(iconx+message_pos+3, 70, message, 0);
+	show_mouse();
+	while(yesno==99)
+	{
+	process_mouse();
+	if (pressed==1)
+	{
+	  if (mousex>canx && mousex<canx+30 && mousey>cany && mousey<cany+30)
+	  {
+		  yesno=FALSE;
+		  ix=canx+1;
+		  iy=cany+1;
+		  hide_mouse();
+		  makesprite(ix,iy,ix+33,iy+33, tempsprite);
+		 // drawsquare(ix,iy,ix+30,iy+30,23);
+		 // drawsquare(ix-1,iy-1,ix+31,iy+31,21);
+
+		  shadesqrxy(ix,iy,32,32,23,21,25);
+		  sprxy(canx+4, cany+5 ,cancel,0);
+
+
+		  show_mouse();
+		  wait_till_released();
+		  sprxy(ix,iy,tempsprite,0);
+	  }
+	  if (mousex>conx && mousex<conx+30 && mousey>cony && mousey<cony+30)
+	  {
+		  yesno=TRUE;
+		  ix=conx+1;
+		  iy=cony+1;
+		  hide_mouse();
+		  makesprite(ix,iy,ix+33,iy+33, tempsprite);
+		  //drawsquare(ix,iy,ix+30,iy+30,23);
+		  //drawsquare(ix-1,iy-1,ix+31,iy+31,21);
+
+		  shadesqrxy(ix,iy,32,32,23,21,25);
+		  sprxy(conx+4, cony+5 ,confirm,0);
+
+
+		  show_mouse();
+		  wait_till_released();
+		  sprxy(ix,iy,tempsprite,0);
+	  }
+	}
+	}
+	wait_till_released();
+	return(yesno);
+}
+
+void enter_setup(void)
+{
+	int done;
+	char newbrd[100], oldbrd[100], x, y, piece;
+	struct gametype oldgame;
+	struct postype oldpos;
+	int oldpoint;
+	SQUARE sq;
+	display(current, TRUE);
+	windowtovid(4,4,180,180,screenbuffer);
+	oldpos=current;
+	oldgame=game;
+	oldpoint=movepointer;
+	for (x=0; x<=99; x++) newbrd[x]=current.brd[x];
+	newbrd[99]=current.mvr;
+	for (x=0; x<=99; x++) oldbrd[x]=newbrd[x];
+	iconmenu=6;
+	display_menu();
+	menutovid();
+	show_mouse();
+	done=FALSE;
+	piece='-';
+	while(!legal_position(newbrd) || !done)
+	{
+		process_mouse();
+		if (pressed==1)
+		{
+		  if (mousex>5 && mousex<165 && mousey>5 && mousey<165)
+		  {
+			 wait_till_released();
+			 sq=(((mousex-5)/20)+1)*10;
+			 sq+=(9-(((mousey-5)/20)+1));
+			 newbrd[sq]=piece;
+			 display_square(sq); display_piece(sq, newbrd[sq]);
+			 if (sq+10<89) display_square(sq+10); display_piece(sq+10, newbrd[sq+10]);
+			 if (sq+9<89 && sq%10>1) display_square(sq+9); display_piece(sq+9, newbrd[sq+9]);
+			 if (sq-1>10 && sq%10>1) display_square(sq-1); display_piece(sq-1, newbrd[sq-1]);
+			 windowtovid((sq/10-1)*20+5,(160-(sq%10)*20),(sq/10-1)*20+40,(195-(sq%10)*20)+20,screenbuffer);
+			 windowtovid(5,160,165,175,screenbuffer);
+			 show_mouse();
+		  } else
+		  if (mousex>iconx && mousex<iconx+132 && mousey>icony && mousey<icony+132)
+		  {
+			 icon=((mousex-iconx)/33);
+			 icon+=(((mousey-icony)/33)*4);
+			 selected(icon,mousex,mousey);
+			 if (icon==3 || icon==2)
+			 {
+				 done=TRUE;
+				 if (icon==3)
+				 {
+					 if (!legal_position(newbrd))
+					 {
+						  hide_mouse();
+						  message_box();
+						  stringxy(40,84,"CLICK MOUSE",0,(unsigned char *)vidmemstart, 98);
+						  //makesprite(196, 55, 306, 75, (unsigned char *)tempsprite);
+						  //shadesqrxy(196, 55, 110, 20, 23, 25, 21);
+						  stringxy(35,60,"INVALID BOARD",0,(unsigned char *)vidmemstart, 98);
+						  show_mouse();
+						  pressed=0;
+						  while (!pressed) process_mouse();
+						  wait_till_released();
+						  hide_mouse();
+						  windowtovid(0,0,180,180,screenbuffer);
+						  //super_sprxy(196, 55, (unsigned char *)tempsprite);
+						  show_mouse();
+					 } else
+					 if (!confirmation("USE NEW BOARD"))
+					 {
+					    iconmenu=0;
+					    current=oldpos;
+					    game=oldgame;
+					    movepointer=oldpoint;
+					    display(current, TRUE);
+					    return;
+					 }
+				 } else
+				 {
+					 iconmenu=0;
+					 current=oldpos;
+					 game=oldgame;
+					 movepointer=oldpoint;
+					 display(current, TRUE);
+					 return;
+				 }
+			 } else
+			 switch (icon)
+			 {
+				 case 0 : piece='p'; break;
+				 case 1 : piece='k'; break;
+				 case 4 : piece='q'; break;
+				 case 5 : piece='n'; break;
+				 case 6 : piece='b'; break;
+				 case 7 : piece='r'; break;
+				 case 8 : piece='P'; break;
+				 case 9 : piece='K'; break;
+				 case 12 : piece='Q'; break;
+				 case 13 : piece='N'; break;
+				 case 14 : piece='B'; break;
+				 case 15 : piece='R'; break;
+				 case 10 : for (x=1; x<=8; x++)
+				 for (y=1; y<=8; y++)
+				 {
+					 newbrd[x*10+y]='-';
+					 display_square(x*10+y);
+					 windowtovid((x-1)*20+5,(160-y*20),(x-1)*20+40,(195-y*20),screenbuffer);
+				 }
+				 break;
+				 case 11 : if (newbrd[99]=='b') newbrd[99]='w'; else newbrd[99]='b';
+							  sprxy(5,172,blanker1,0,screenbuffer);
+							  sprxy(130,172,blanker2,0,screenbuffer);
+							  if (newbrd[99]=='w') sprxy(31,176,leftarr,options.wo,screenbuffer); else
+							  sprxy(130,176,rightarr,options.bo,screenbuffer);
+							  if (options.whiteplayer==USER) sprxy(10,172,man,options.wo,screenbuffer); else
+							  sprxy(5,172,chip,options.wo,screenbuffer);
+							  if (options.blackplayer==USER) sprxy(145,172,man,options.bo,screenbuffer); else
+							  sprxy(140,172,chip,options.bo,screenbuffer);
+							  windowtovid(0,160,180,199,screenbuffer);
+			 } // switch
+		  } // mousex>iconx etc...
+		} else
+		if (pressed==2)
+		{
+			wait_till_released();
+			if (mousex>5 && mousex<165 && mousey>5 && mousey<165)
+			{
+				sq=(((mousex-5)/20)+1)*10;
+				sq+=(9-(((mousey-5)/20)+1));
+				newbrd[sq]='-';
+				display_square(sq);
+				display_piece(sq, newbrd[sq]);
+				windowtovid((sq/10-1)*20+5,(160-(sq%10)*20),(sq/10-1)*20+40,(195-(sq%10)*20)+20,screenbuffer);
+				//windowtovid(5,160,165,175,screenbuffer);
+				show_mouse();
+			}
+		}
+	} // while !legal_position
+	iconmenu=0;
+}
+
+void show_blue_tiles(void)
+{
+  shadesqrxy(191,16+icony,55,110,23,25,21);
+  sprxy(191,4+icony,reddy,0);
+  shadesqrxy(256,16+icony,55,110,23,25,21);
+  sprxy(256,4+icony,greeny,0);
+}
+
+void menchip(void)
+{
+  static char oldmvr=99;
+  static char oldwhite=99;
+  static char oldblack=99;
+  static char oldcolw=99;
+  static char oldcolb=99;
+  if (oldmvr==99 || current.mvr!=oldmvr || oldblack!=options.blackplayer || oldwhite!=options.whiteplayer || oldcolw!=options.wo || oldcolb!=options.bo)
+  {
+    sprxy(5,172,blanker1,0,screenbuffer);
+    sprxy(130,172,blanker2,0,screenbuffer);
+    if (current.mvr=='w') sprxy(31,176,leftarr,options.wo,screenbuffer); else
+      sprxy(130,176,rightarr,options.bo,screenbuffer);
+    if (options.whiteplayer==USER) sprxy(10,172,man,options.wo,screenbuffer); else
+      sprxy(5,172,chip,options.wo,screenbuffer);
+    if (options.blackplayer==USER) sprxy(145,172,man,options.bo,screenbuffer); else
+      sprxy(140,172,chip,options.bo,screenbuffer);
+  }
+  oldmvr=current.mvr;
+  oldwhite=options.whiteplayer;
+  oldblack=options.blackplayer;
+  oldcolw=options.wo;
+  oldcolb=options.bo;
+}
+
+void variant_select(void)
+{
+  unsigned char ix, iy;
+  unsigned char oldsel=1, ok=0;
+  char selected=0, old;
+  unsigned char okbut=130;
+  unsigned char oldgame;
+  oldgame=options.game;
+  hide_mouse();
+//  sprxy(oldmousex,oldmousey,mouseblank,0); // erase mouse pointer
+  shadesqrxy(4,4,161,161,23,25,21);
+  sprxy(10,10,rivalogo,0);
+  shadesqrxy(10,okbut,149,9,23,25,21);
+  stringxy(76,okbut+2,"OK", 0);
+  show_mouse();
+
+  while (!ok)
+  {
+    pressed=0;
+    hide_mouse();
+    stringxy(12, 40, "GAME RULES", 47);
+    stringxy(12, 60, "NORMAL CHESS      ", 0);
+    stringxy(12, 70, "KINGLET           ", 0);
+    stringxy(12, 80, "GIVEAWAY CHESS    ", 0);
+    stringxy(12, 90, "SHATRANJ          ", 0);
+//    stringxy(12, 100, "CHECKLESS         ", 0);
+    if (selected!=0)
+      drawsquare(10, 48+(selected*10), 158, 48+(selected*10)+9, SELECTER);
+    sprxy(145, 50+(options.game*10), tik, 0);
+    show_mouse();
+    while (!pressed)
+    {
+     process_mouse();
+     if (mousex>12 && mousex<158)
+     {
+       oldsel=selected;
+       selected=((mousey-60)/10)+1;
+       if (selected<1 || selected>4) selected=0;
+       if (mousex<5 || mousex>165)
+	 selected=0;
+       if (selected!=oldsel)
+       {
+	  hide_mouse();
+	  if (selected!=0)
+	     drawsquare(10, 48+(selected*10), 158, 48+(selected*10)+9, SELECTER);
+	  sprxy(145, 50+(options.game*10), tik, 0);
+	  drawsquare(10, 48+(oldsel*10), 158, 48+(oldsel*10)+9, 23);
+	  show_mouse();
+       }
+     }
+    }
+    if (pressed==1)
+    {
+      if (selected!=0) options.game=selected;
+      if (mousex>10 && mousex<159 && mousey>okbut && mousey<okbut+9)
+      {
+	hide_mouse();
+	shadesqrxy(10,okbut,149,9,23,21,25);
+	stringxy(76,okbut+2,"OK", 0);
+	show_mouse();
+	wait_till_released();
+	hide_mouse();
+	shadesqrxy(10,okbut,149,9,23,25,21);
+	stringxy(76,okbut+2,"OK", 0);
+	show_mouse();
+	if (oldgame!=REGULARCHESS && options.game==1)
+	{
+	  if (current.wkingcount==0 && current.bkingcount==0) ok=1; else ok=0;
+	  if (current.mvr=='w') ok=(ok && !check(&current, current.bking[0]));
+	  if (current.mvr=='b') ok=(ok && !check(&current, current.wking[0]));
+	  if (ok==0)
+	  {
+	    hide_mouse();
+	    windowtovid(4,4,180,180,screenbuffer);
+	    message_box();
+	    stringxy(40,84,"CLICK MOUSE",0,(unsigned char *)vidmemstart, 98);
+	    stringxy(27,55,"INVALID REGULAR",0,(unsigned char *)vidmemstart, 98);
+	    stringxy(31,65,"CHESS POSITION",0,(unsigned char *)vidmemstart, 98);
+	    show_mouse();
+	    pressed=0;
+	    while (!pressed) process_mouse();
+	    options.game=oldgame;
+	    ok=1;
+	  }
+	} else
+	ok=1;
+      }
+      wait_till_released();
+    }
+    if (pressed==2) wait_till_released();
+  }
+  wait_till_released();
+  windowtovid(4,4,319,199,screenbuffer);
+}
+
+void show_currents(void)
+{
+    char stval[4];
+    switch(options.playstyle)
+    {
+       case 1: stringxy(12+1, 102, "CURRENT LEVEL IS", 0);
+	       letxy(145, 102, options.maxdepth+48, 47);
+	       break;
+       case 2: stval[0]=(options.maxtime/100)+48;
+	       stval[1]=(options.maxtime%100/10)+48;
+	       stval[2]=(options.maxtime%100%10)+48;
+	       stval[3]='\0';
+	       stringxy(12+1, 102, "CURRENT IS    SECS", 0);
+	       stringxy(97, 102, stval, 47);
+	       break;
+       case 3: stval[0]=(options.champmoves/100)+48;
+	       stval[1]=(options.champmoves%100/10)+48;
+	       stval[2]=(options.champmoves%100%10)+48;
+	       stval[3]='\0';
+	       stringxy(12+1, 102, "CURRNT", 0);
+	       stringxy(65, 102, "IS    IN", 0);
+	       stringxy(84, 102, stval, 47);
+	       stval[0]=(options.champtime/100)+48;
+	       stval[1]=(options.champtime%100/10)+48;
+	       stval[2]=(options.champtime%100%10)+48;
+	       stval[3]='\0';
+	       stringxy(131, 102, stval, 47);
+	       break;
+    }
+}
+
+void time_select(void)
+{
+  unsigned char ix, iy;
+  unsigned char oldsel=1, ok=0;
+  char selected=0;
+  char ch, digits;
+  unsigned char okbut=130;
+  hide_mouse();
+//  sprxy(oldmousex,oldmousey,mouseblank,0); // erase mouse pointer
+  shadesqrxy(4,4,161,161,23,25,21);
+  sprxy(10,10,rivalogo,0);
+  shadesqrxy(10,okbut,149,9,23,25,21);
+  stringxy(76,okbut+2,"OK", 0);
+  show_mouse();
+  while (!ok)
+  {
+    pressed=0;
+    hide_mouse();
+    stringxy(12, 40, "TIMING MEHTOD", 47);
+    stringxy(12, 60, "FIXED LEVEL       ", 0);
+    stringxy(12, 70, "FIXED TIME        ", 0);
+    stringxy(12, 80, "CHAMPIONSHIP      ", 0);
+    shadesqrxy(10,100,149,9,23,25,21);
+    show_currents();
+    if (selected!=0)
+      drawsquare(10, 48+(selected*10), 158, 48+(selected*10)+9, SELECTER);
+    sprxy(145, 50+(options.playstyle*10), tik, 0);
+    show_mouse();
+    while (!pressed)
+    {
+     process_mouse();
+     if (mousex>12 && mousex<158)
+     {
+       oldsel=selected;
+       selected=((mousey-60)/10)+1;
+       if (selected<1 || selected>3) selected=0;
+       if (selected!=oldsel)
+       {
+	  hide_mouse();
+	  if (selected!=0)
+	     drawsquare(10, 48+(selected*10), 158, 48+(selected*10)+9, SELECTER);
+	  sprxy(145, 50+(options.playstyle*10), tik, 0);
+	  drawsquare(10, 48+(oldsel*10), 158, 48+(oldsel*10)+9, 23);
+	  show_mouse();
+       }
+     }
+    }
+    if (pressed==1)
+    {
+      if (selected!=0) options.playstyle=selected;
+      if (mousex>10 && mousex<159 && mousey>okbut && mousey<okbut+9)
+      {
+	hide_mouse();
+	shadesqrxy(10,okbut,149,9,23,21,25);
+	stringxy(76,okbut+2,"OK", 0);
+	show_mouse();
+	wait_till_released();
+	hide_mouse();
+	shadesqrxy(10,okbut,149,9,23,25,21);
+	stringxy(76,okbut+2,"OK", 0);
+	show_mouse();
+	ok=1;
+      }
+      if (mousex>10 && mousex<159 && mousey>100 && mousey<109)
+      {
+	hide_mouse();
+	shadesqrxy(10,100,149,9,23,21,25);
+	show_currents();
+	show_mouse();
+	wait_till_released();
+	hide_mouse();
+	shadesqrxy(10,100,149,9,23,21,25);
+	switch (options.playstyle)
+	{
+	   case FIXEDLEVEL: stringxy(12,102,"ENTER LEVEL 2 TO 8", 0);
+			    ch=' ';
+			    while (!(ch>='2' && ch<='8')) ch=getch();
+			    options.maxdepth=ch-48;
+			    break;
+	   case FIXEDTIME:  stringxy(12,102,"ENTER SECONDS",0);
+			    options.maxtime=0;
+			    ch=digits=0;
+			    while (ch!=13 && digits<3)
+			    {
+			      ch=' ';
+			      while (!(ch>='0' && ch<='9') && (ch!=13)) ch=getch();
+			      if (ch!=13)
+			      {
+				digits++;
+				options.maxtime*=10;
+				options.maxtime+=ch-48;
+				letxy(116+(8*digits), 102, ch, 0);
+			      } else
+			      {
+				if (options.maxtime==0) options.maxtime=doptions.maxtime;
+			      }
+			    }
+			    break;
+	 case CHAMPIONSHIP: while (kbhit()) getch();
+			    stringxy(12,102,"ENTER NUM MOVES",0);
+			    options.champmoves=0;
+			    ch=digits=0;
+			    while (ch!=13 && digits<3)
+			    {
+			      ch=' ';
+			      while (!(ch>='0' && ch<='9') && (ch!=13)) ch=getch();
+			      if (ch!=13)
+			      {
+				digits++;
+				options.champmoves*=10;
+				options.champmoves+=ch-48;
+				letxy(130+(8*digits), 102, ch, 0);
+			      } else
+			      {
+				if (options.champmoves==0) options.champmoves=doptions.champmoves;
+			      }
+			    }
+			    shadesqrxy(10,100,149,9,23,21,25);
+			    stringxy(12,102,"ENTER MINUTES",0);
+			    options.champtime=0;
+			    ch=digits=0;
+			    while (ch!=13 && digits<3)
+			    {
+			      ch=' ';
+			      while (!(ch>='0' && ch<='9') && (ch!=13)) ch=getch();
+			      if (ch!=13)
+			      {
+				digits++;
+				options.champtime*=10;
+				options.champtime+=ch-48;
+				letxy(116+(8*digits), 102, ch, 0);
+			      } else
+			      {
+				if (options.champtime==0) options.champtime=doptions.champtime;
+			      }
+			    }
+			    break;
+	}
+	shadesqrxy(10,100,149,9,23,25,21);
+	show_currents();
+	show_mouse();
+	wait_till_released();
+      }
+      wait_till_released();
+    }
+    if (pressed==2) wait_till_released();
+  }
+  wait_till_released();
+  windowtovid(4,4,319,199,screenbuffer);
+}
+
+void words(void)
+{
+    stringxy(40,56,"VERSION 1=5", 47);
+    stringxy(26,85,"USE RIGHT MOUSE", 0);
+    stringxy(26,95,"BUTTON FOR HELP", 0);
+    stringxy(33,122,"VARIANT", 0);
+    stringxy(122,122,"OK", 0);
+}
+
+void initial_displays(struct postype current)
+{
+  unsigned int i,j;
+  char ch;
+  FILE *openings;
+  g_SetVGA();
+  for (i=0; i<8; i++)
+	for (j=0; j<5; j++)
+	  super_sprxy(i*40,j*40,greytile,screenbuffer);
+  super_sprxy(185,132+icony,scoreslab,screenbuffer);
+  super_sprxy(185,144+icony,movetable,screenbuffer);
+  makesprite(5,172,39,196,blanker1,screenbuffer);
+  makesprite(130,172,164,196,blanker2,screenbuffer);
+  sprxy(171,176,bottube,0,screenbuffer);
+  for (i=5; i<=44; i++) sprxy(171, 186-i*4, tube, 0,screenbuffer);
+  sprxy(171,6,toptube,0,screenbuffer);
+  sprxy(59,175,rivalogo,0,screenbuffer);
+  fadegraphbuff(10,166,172,171,5,18,screenbuffer);
+  fadegraphbuff(165,11,172,165,5,18,screenbuffer);
+  display_menu();
+  shadesqrxy(4,4,161,161,23,25,21,screenbuffer);
+  enlargexy(34,10,rivalogo,0,screenbuffer);
+  sprxy(20,150,chrisruss,0,screenbuffer);
+  shadesqrxy(185,183,59,9,23,25,21,screenbuffer);
+  shadesqrxy(257,183,59,9,23,25,21,screenbuffer);
+  shadesqrxy(30,120,58,9,23,25,21,screenbuffer);
+  shadesqrxy(120,120,18,9,23,25,21,screenbuffer);
+
+  menchip();
+  initialise_mouse();
+  windowtovid(0,0,319,199,screenbuffer);
+  setvgapalette(palette);
+
+
+  openings=fopen("OPENINGS.LIB","r");
+  if (openings==NULL)
+  {
+    stringxy(14,142,"OPENINGS NOT FOUND", 0);
+    fclose(openings);
+  }
+
+  if (!mouse_detected())
+  {
+    stringxy(25,64,"MOUSE NOT FOUND?", 47);
+    stringxy(10,90,"PLEASE LOAD A MOUSE", 0);
+    stringxy(10,100,"DRIVER> ESC TO EXIT", 0);
+    ch=0;
+    while (ch!=27) ch=getch();
+    g_SetTxt();
+    printf("You may be running under Windows without a DOS mouse driver loaded.\n");
+    printf("------------------------------------------------------------------.\n");
+    printf("You may be able to load your mouse driver by typing MOUSE from DOS.\n");
+    printf("------------------------------------------------------------------.\n");
+    printf("Keyboard support is being added to Rival.  Sorry for any hassle.   \n");
+    printf("------------------------------------------------------------------.\n");
+    printf("Press a key to return to wherever you were before.\n");
+    ch=getch();
+    exit(0);
+  } else
+  {
+     words();
+  }
+
+  show_mouse();
+
+  pressed=0;
+  while (!pressed)
+  {
+     process_mouse();
+     if (kbhit()) if (getch()==27)
+     {
+	g_SetTxt();
+	printf("That was quick.  Bye.");
+	exit(0);
+     }
+     if (pressed==1)
+     {
+	if (mousex>30 && mousex<90 && mousey>120 && mousey<129)
+	{
+	   hide_mouse();
+	   shadesqrxy(30,120,58,9,23,21,25);
+	   stringxy(33,122,"VARIANT", 0);
+	   show_mouse();
+	   wait_till_released();
+	   hide_mouse();
+	   shadesqrxy(30,120,58,9,23,25,21);
+	   stringxy(33,122,"VARIANT", 0);
+	   show_mouse();
+//	   rival_help(71);
+	   variant_select();
+	   openings=fopen("OPENINGS.LIB","r");
+	   if (openings==NULL)  {    stringxy(14,142,"OPENINGS NOT FOUND", 0);    fclose(openings);  }
+	   words();
+	   show_mouse();
+	} else
+	if (mousex>120 && mousex<138 && mousey>120 && mousey<129)
+	{
+	   hide_mouse();
+	   shadesqrxy(120,120,18,9,23,21,25);
+	   stringxy(122,122,"OK", 0);
+	   show_mouse();
+	   wait_till_released();
+	   hide_mouse();
+	   shadesqrxy(120,120,18,9,23,25,21);
+	   stringxy(122,122,"OK", 0);
+	   show_mouse();
+	} else
+	pressed=0;
+     }
+     if (pressed==2)
+     {
+       wait_till_released();
+       rival_help(70);
+       openings=fopen("OPENINGS.LIB","r");
+       if (openings==NULL)  {    stringxy(14,142,"OPENINGS NOT FOUND", 0);    fclose(openings);  }
+       words();
+       pressed=0;
+     }
+  }
+
+  display(current, FALSE);
+  drawsquare(4,4,165,165,16,screenbuffer);
+  windowtovid(1,1,319,199,screenbuffer);
+  wait_till_released();
+
+}
+
+void shownumber(long number, int x, int y)
+{
+  if (number<0) showchar('-',x+56,y);
+  number=labs(number);
+  showchar((char)(number/1000000L)+48,x,y);
+  showchar((char)(number%1000000L/100000L)+48,x+8,y);
+  showchar((char)(number%1000000L%100000L/10000L)+48,x+16,y);
+  showchar((char)(number%1000000L%100000L%10000L/1000L)+48,x+24,y);
+  showchar((char)(number%1000000L%100000L%10000L%1000L/100L)+48,x+32,y);
+  showchar((char)(number%1000000L%100000L%10000L%1000L%100L/10L)+48,x+40,y);
+  showchar((char)(number%1000000L%100000L%10000L%1000L%100L%10L)+48,x+48,y);
+}
+
+void bufshowchar(char chr, int posx, int posy)
+{
+  switch(chr)
+  {
+	 case '0':sprxy(posx, posy, c0, 0, screenbuffer); break;
+	 case '1':sprxy(posx, posy, c1, 0, screenbuffer); break;
+	 case '2':sprxy(posx, posy, c2, 0, screenbuffer); break;
+	 case '3':sprxy(posx, posy, c3, 0, screenbuffer); break;
+	 case '4':sprxy(posx, posy, c4, 0, screenbuffer); break;
+	 case '5':sprxy(posx, posy, c5, 0, screenbuffer); break;
+	 case '6':sprxy(posx, posy, c6, 0, screenbuffer); break;
+	 case '7':sprxy(posx, posy, c7, 0, screenbuffer); break;
+	 case '8':sprxy(posx, posy, c8, 0, screenbuffer); break;
+	 case '9':sprxy(posx, posy, c9, 0, screenbuffer); break;
+	 case 'A':sprxy(posx, posy, ca, 0, screenbuffer); break;
+	 case 'B':sprxy(posx, posy, cb, 0, screenbuffer); break;
+	 case 'C':sprxy(posx, posy, cc, 0, screenbuffer); break;
+	 case 'D':sprxy(posx, posy, cd, 0, screenbuffer); break;
+	 case 'E':sprxy(posx, posy, ce, 0, screenbuffer); break;
+	 case 'F':sprxy(posx, posy, cf, 0, screenbuffer); break;
+	 case 'G':sprxy(posx, posy, cg, 0, screenbuffer); break;
+	 case 'H':sprxy(posx, posy, ch, 0, screenbuffer); break;
+	 case 'N':sprxy(posx, posy, c4, 0, screenbuffer); break;
+	 case 'O':sprxy(posx, posy, c0, 0, screenbuffer); break;
+	 case 'S':sprxy(posx, posy, c5, 0, screenbuffer); break;
+	 case '-':sprxy(posx, posy, cmin, 0, screenbuffer); break;
+	 case '+':sprxy(posx, posy, cadd, 0, screenbuffer); break;
+	 case '*':sprxy(posx, posy, cstar, 0, screenbuffer); break;
+	 case '.':sprxy(posx, posy, cstop, 0, screenbuffer); break;
+	 default: break;
+  }
+}
+
+void display_moves(void)
+{
+  int i;
+  struct postype oldpos, imagine;
+  mvtype move;
+  char cap, check, count, addon, row;
+  sprxy(185,144+icony,movetable,0,screenbuffer);
+  count=0;
+  move=game.previous_moves[movepointer];
+  oldpos=game.firstpos;
+  for (i=1; i<=movepointer; i++)
+  {
+	 alter(&oldpos, game.previous_moves[i], &imagine);
+	 oldpos=imagine;
+  }
+  if (imagine.brd[move.t]>'a') addon=62; else addon=3; // black just moved
+  count=1;
+  for (i=movepointer; i>0 && count<=3; i--)
+  {
+	 move=game.previous_moves[i];
+	 if (move.lastwin!='-') cap='*'; else cap='-';
+	 if (move.check) check='+'; else check=' ';
+	 row=count*9;
+	 sprxy(188+addon,icony+176-(row),moveblank,0,screenbuffer);
+	 bufshowchar(move.f/10+64, 193+addon, icony+176-(row));
+	 bufshowchar(move.f%10+48, 201+addon, icony+176-(row));
+	 bufshowchar(cap, 209+addon, icony+176-(row));
+	 bufshowchar(move.t/10+64, 217+addon, icony+176-(row));
+	 bufshowchar(move.t%10+48, 225+addon, icony+176-(row));
+	 bufshowchar(check, 233+addon, icony+176-(row));
+	 if (addon==62)
+	 {
+		addon=3;
+	 } else
+	 {
+		addon=62;
+		count++;
+	 }
+
+  }
+  shownumber(game.whites[game.movenum], 188, 184);
+  shownumber(game.blacks[game.movenum], 260, 184);
+  windowtovid(195,144+icony,iconx+132,144+icony+37,screenbuffer);
+}
+
+void regular_displays(struct postype current, mvtype mv)
+{
+  int i, xinc, yinc, x, y, dist, xdist, ydist, counter;
+  unsigned char piece[402], adder;
+  BOOLEAN knightmove;
+  menchip();
+  if (mv.t>=100) display_menu();
+  menutovid();
+#ifndef rands
+  if (!options.pieceslide || mv.f==0 || mv.t>=100) display(current, FALSE);
+  if (options.pieceslide && mv.f<89 && mv.f>10 && mv.t<89 && mv.t>10)
+  {
+	  if (options.chessset==REGULARSET)
+	  switch(current.brd[mv.t])
+	  {
+		  case 'p' : for (i=0; i<402; i++) piece[i]=pawn[i]; break;
+		  case 'P' : for (i=0; i<402; i++) piece[i]=pawn[i]; break;
+		  case 'q' : for (i=0; i<402; i++) piece[i]=queen[i]; break;
+		  case 'Q' : for (i=0; i<402; i++) piece[i]=queen[i]; break;
+		  case 'k' : for (i=0; i<402; i++) piece[i]=king[i]; break;
+		  case 'K' : for (i=0; i<402; i++) piece[i]=king[i]; break;
+		  case 'r' : for (i=0; i<402; i++) piece[i]=rook[i]; break;
+		  case 'R' : for (i=0; i<402; i++) piece[i]=rook[i]; break;
+		  case 'n' : for (i=0; i<402; i++) piece[i]=knight[i]; break;
+		  case 'N' : for (i=0; i<402; i++) piece[i]=knight[i]; break;
+		  case 'b' : for (i=0; i<402; i++) piece[i]=bishop[i]; break;
+		  case 'B' : for (i=0; i<402; i++) piece[i]=bishop[i]; break;
+	  }
+	  if (options.chessset==HUMANSET)
+	  switch(current.brd[mv.t])
+	  {
+		  case 'p' : for (i=0; i<402; i++) piece[i]=pawnh[i]; break;
+		  case 'P' : for (i=0; i<402; i++) piece[i]=pawnh[i]; break;
+		  case 'q' : for (i=0; i<402; i++) piece[i]=queenh[i]; break;
+		  case 'Q' : for (i=0; i<402; i++) piece[i]=queenh[i]; break;
+		  case 'k' : for (i=0; i<402; i++) piece[i]=kingh[i]; break;
+		  case 'K' : for (i=0; i<402; i++) piece[i]=kingh[i]; break;
+		  case 'r' : for (i=0; i<402; i++) piece[i]=rookh[i]; break;
+		  case 'R' : for (i=0; i<402; i++) piece[i]=rookh[i]; break;
+		  case 'n' : for (i=0; i<402; i++) piece[i]=knighth[i]; break;
+		  case 'N' : for (i=0; i<402; i++) piece[i]=knighth[i]; break;
+		  case 'b' : for (i=0; i<402; i++) piece[i]=bishoph[i]; break;
+		  case 'B' : for (i=0; i<402; i++) piece[i]=bishoph[i]; break;
+	  }
+	  if (options.chessset==SHAPESET)
+	  switch(current.brd[mv.t])
+	  {
+		  case 'p' : for (i=0; i<402; i++) piece[i]=pawns[i]; break;
+		  case 'P' : for (i=0; i<402; i++) piece[i]=pawns[i]; break;
+		  case 'q' : for (i=0; i<402; i++) piece[i]=queens[i]; break;
+		  case 'Q' : for (i=0; i<402; i++) piece[i]=queens[i]; break;
+		  case 'k' : for (i=0; i<402; i++) piece[i]=kings[i]; break;
+		  case 'K' : for (i=0; i<402; i++) piece[i]=kings[i]; break;
+		  case 'r' : for (i=0; i<402; i++) piece[i]=rooks[i]; break;
+		  case 'R' : for (i=0; i<402; i++) piece[i]=rooks[i]; break;
+		  case 'n' : for (i=0; i<402; i++) piece[i]=knights[i]; break;
+		  case 'N' : for (i=0; i<402; i++) piece[i]=knights[i]; break;
+		  case 'b' : for (i=0; i<402; i++) piece[i]=bishops[i]; break;
+		  case 'B' : for (i=0; i<402; i++) piece[i]=bishops[i]; break;
+	  }
+	  adder=((current.brd[mv.t]!='p' && current.brd[mv.t]!='P') || (options.chessset==HUMANSET));
+	  windowtovid(5,5,180,180,screenbuffer);
+	  knightmove=(current.brd[mv.t]=='n' || current.brd[mv.t]=='N');
+	  if (options.inverted)
+	  {
+		 mv.f=99-mv.f;
+		 mv.t=99-mv.t;
+	  }
+	  display_square(mv.f);
+	  xinc=0; yinc=0;
+	  if (mv.t/10!=mv.f/10 && mv.t%10!=mv.f%10 && !knightmove)
+	  {
+		 xdist=((mv.t/10)-(mv.f/10))*20;
+		 ydist=((mv.t%10)-(mv.f%10))*20;
+		 counter=0;
+		 while (counter<=abs(xdist))
+		 {
+			 x=((mv.f/10)*20)-16;
+			 y=((mv.f%10)*20);
+			 y=164-y;
+			 if (xdist<0) xinc=-counter; else xinc=counter;
+			 if (ydist<0) yinc=counter; else yinc=-counter;
+			 x=x+xinc;
+			 y=y+yinc;
+			 makesprite(x,y,x+22,y+21,tempsprite,screenbuffer);
+			 sprxy(x+1,y+adder,piece,(current.mvr=='w') ? options.bo : options.wo,screenbuffer);
+			 delay(c_delay_time);
+			 windowtovid(x,y,x+22,y+21,screenbuffer);
+			 super_sprxy(x,y,tempsprite,screenbuffer);
+			 delay(c_delay_time);
+			 counter++;
+		 }
+	  } else
+	  {
+		 if ((mv.t/10)>(mv.f/10))
+		 {
+			 dist=((mv.t/10)-(mv.f/10))*20;
+			 for (xinc=0; xinc<=dist; xinc++)
+			 {
+				 x=((mv.f/10)*20)-16;
+				 y=((mv.f%10)*20);
+				 y=164-y;
+				 x=x+xinc;
+				 y=y+yinc;
+				 makesprite(x,y,x+22,y+21,tempsprite,screenbuffer);
+				 sprxy(x+1,y+adder,piece,(current.mvr=='w') ? options.bo : options.wo,screenbuffer);
+				 delay(c_delay_time);
+				 windowtovid(x,y,x+22,y+21,screenbuffer);
+				 super_sprxy(x,y,tempsprite,screenbuffer);
+				 delay(c_delay_time);
+			 }
+			 xinc--; // you know why
+		  }
+		  if ((mv.t/10)<(mv.f/10))
+		  {
+			 dist=((mv.f/10)-(mv.t/10))*20;
+			 for (xinc=0; xinc>=-dist; xinc--)
+			 {
+				 x=((mv.f/10)*20)-16;
+				 y=((mv.f%10)*20);
+				 y=164-y;
+				 x=x+xinc;
+				 y=y+yinc;
+				 makesprite(x,y,x+22,y+21,tempsprite,screenbuffer);
+				 sprxy(x+1,y+adder,piece,(current.mvr=='w') ? options.bo : options.wo,screenbuffer);
+				 delay(c_delay_time);
+				 windowtovid(x,y,x+22,y+21,screenbuffer);
+				 super_sprxy(x,y,tempsprite,screenbuffer);
+				 delay(c_delay_time);
+			 }
+			 xinc++;
+		  }
+		  if ((mv.t%10)<(mv.f%10))
+		  {
+			  dist=((mv.f%10)-(mv.t%10))*20;
+			  for (yinc=0; yinc<=dist; yinc++)
+			  {
+					x=((mv.f/10)*20)-16-(options.chessset==SHAPESET);
+					y=((mv.f%10)*20);
+					y=164-y;
+					x=x+xinc;
+					y=y+yinc;
+					makesprite(x,y,x+22,y+21,tempsprite,screenbuffer);
+					sprxy(x+1,y+adder,piece,(current.mvr=='w') ? options.bo : options.wo,screenbuffer);
+					delay(c_delay_time);
+					windowtovid(x,y,x+22,y+21,screenbuffer);
+					super_sprxy(x,y,tempsprite,screenbuffer);
+					delay(c_delay_time);
+			  }
+		  }
+		  if ((mv.t%10)>(mv.f%10))
+		  {
+			  dist=((mv.t%10)-(mv.f%10))*20;
+			  for (yinc=0; yinc>=(-dist)+(options.chessset==SHAPESET); yinc--)
+			  {
+				  x=((mv.f/10)*20)-16-(options.chessset==SHAPESET);
+				  y=((mv.f%10)*20);
+				  y=164-y;
+				  x=x+xinc;
+				  y=y+yinc;
+				  makesprite(x,y,x+22,y+21,tempsprite,screenbuffer);
+				  sprxy(x+1,y+adder,piece,(current.mvr=='w') ? options.bo : options.wo,screenbuffer);
+				  delay(c_delay_time);
+				  windowtovid(x,y,x+22,y+21,screenbuffer);
+				  super_sprxy(x,y,tempsprite,screenbuffer);
+				  delay(c_delay_time);
+			  }
+		  }
+	  }
+	  display(current,TRUE);
+  }
+  windowtovid(5,5,190,180,screenbuffer);
+#endif
+  display_moves();
+  shownumber(game.blacks[game.movenum], 260, 184);
+  shownumber(game.whites[game.movenum], 188, 184);
+}
+
+void showpath(int start, struct pathtype *path)
+{
+ int i,noshow,tempnum;
+ char cap,check;
+ noshow=FALSE;
+ if (mousex>183 && mousey<150) hide_mouse();
+ for (i=0; i<=10; i++)
+ {
+  if (path->move[i].f!=0 && noshow==FALSE)
+  {
+	  if (path->move[i].lastwin!='-') cap='*'; else cap='-';
+	  if (path->move[i].check==1) check='+'; else check=' ';
+	  showchar(path->move[i].f/10+64, start, 20+icony+(i*9));
+	  showchar(path->move[i].f%10+48, start+8, 20+icony+(i*9));
+	  showchar(cap, start+16, 20+icony+(i*9));
+	  showchar(path->move[i].t/10+64, start+24, 20+icony+(i*9));
+	  showchar(path->move[i].t%10+48, start+32, 20+icony+(i*9));
+	  showchar(check, start+40, 20+icony+(i*9));
+  } else
+  {
+	  sprxy(start-2,20+icony+(i*9),moveblank,0);
+	  if (!noshow && start>250) // if first time and best path
+	  {
+		  sprxy(start-5,135+icony,moveblank,0);
+		  if (path->value<0)
+		  {
+				showchar('-',start,icony+135);
+				tempnum=-path->value;
+		  } else
+		  tempnum=path->value;
+		  if (tempnum/100>=10)
+		  {
+				showchar((char)(tempnum/100/10)+48,start+8,icony+135);
+				showchar((char)(tempnum/100%10)+48,start+16,icony+135);
+				showchar('.',start+24,icony+135);
+				showchar((char)(tempnum%100/10)+48,start+32,icony+135);
+				showchar((char)(tempnum%100%10)+48,start+40,icony+135);
+		  } else
+		  {
+				showchar((char)(tempnum/100)+48,start+8,icony+135);
+				showchar('.',start+16,icony+135);
+				showchar((char)(tempnum%100/10)+48,start+24,icony+135);
+				showchar((char)(tempnum%100%10)+48,start+32,icony+135);
+		  }
+	}
+	noshow=TRUE;
+  }
+ }
+ if (mousex>183 && mousey<150) show_mouse();
+}
+
+void show_nodes(long nodes)
+{
+	int start=190;
+	shownumber(nodes, start, icony+135);
+}
+
+void display_score_slab(long nodes, int score)
+{
+  int tempnum;
+  int start=260;
+  sprxy(185,132+icony,scoreslab,0);
+  show_nodes(nodes);
+  if (score<0)
+  {
+	 showchar('-',start,icony+135);
+	 tempnum=-score;
+  } else
+  tempnum=score;
+  if (tempnum/100>=10)
+  {
+	 showchar((char)(tempnum/100/10)+48,start+8,icony+135);
+	 showchar((char)(tempnum/100%10)+48,start+16,icony+135);
+	 showchar('.',start+24,icony+135);
+	 showchar((char)(tempnum%100/10)+48,start+32,icony+135);
+	 showchar((char)(tempnum%100%10)+48,start+40,icony+135);
+  } else
+  {
+	 showchar((char)(tempnum/100)+48,start+8,icony+135);
+	 showchar('.',start+16,icony+135);
+	 showchar((char)(tempnum%100/10)+48,start+24,icony+135);
+	 showchar((char)(tempnum%100%10)+48,start+32,icony+135);
+  }
+}
+
+void showstats(long nodes, long seconds, char depth, struct pathtype path)
+{
+  int start=251;
+  hide_mouse();
+  shadesqrxy(iconx+63,icony+10,60,111,23,25,21);
+  shadesqrxy(iconx+9,icony+10,53,111,23,25,21);
+  shadesqrxy(iconx+63,icony+10+00,60,27,23,25,21);
+  shadesqrxy(iconx+63,icony+10+28,60,27,23,25,21);
+  shadesqrxy(iconx+63,icony+10+56,60,27,23,25,21);
+  shadesqrxy(iconx+63,icony+10+84,60,27,23,25,21);
+  stringxy(start,icony+15,"NODES\0", 0);
+  shownumber(nodes, start, icony+25);
+  stringxy(start,icony+71,"N SEC\0", 0);
+  shownumber(nodes/seconds, start, icony+81);
+  stringxy(start,icony+43,"SECONDS\0", 0);
+  shownumber(seconds, start, icony+53);
+  stringxy(start,icony+99,"DEPTH\0", 0);
+  shownumber(depth, start, icony+109);
+  show_mouse();
+  showpath(197,&path);
+  pressed=0;
+  while (!pressed) process_mouse();
+  wait_till_released();
+  hide_mouse();
+}
+
+void computer_move_displays(void)
+{
+  sprxy(185,132+icony,scoreslab,0);
+}
+
+char get_savepos(char filemode)
+{
+   iconmenu=(filemode=='w') ? 4 : 5;
+   display_menu();
+   menutovid();
+   show_mouse();
+   while(1)
+   {
+      process_mouse();
+      if (pressed==1)
+      {
+	 if (mousex>iconx && mousex<iconx+132 && mousey>icony && mousey<icony+132)
+	 {
+	    icon=((mousex-iconx)/33);
+	    icon+=(((mousey-icony)/33)*4);
+	    selected(icon,mousex,mousey);
+	    iconmenu=0;
+	    return(icon);
+	 }
+      }
+   }
+}
+
+void SetTextMode(void)
+{
+	g_SetTxt();
+}
+
+void SolveyBlank(char n, char FLAGsolved)
+{
+	char s[16], ss[3];
+	sprxy(iconx+3,140,moveblank,0);
+	sprxy(iconx+40,140,moveblank,0);
+	sprxy(iconx+40,140,moveblank,0);
+	if (FLAGsolved)
+		strcpy(s, "MATE FOUND IN"); else
+		strcpy(s, "NO MATE IN");
+	ss[0]=' ';
+	ss[1]=n+48;
+	ss[2]='\0';
+	strcat(s, ss);
+	switch (n)
+	{
+		case 1: stringxy(iconx+3,140, s, 0); break;
+		case 2: stringxy(iconx+3,140, s, 0); break;
+		case 3: stringxy(iconx+3,140, s, 0); break;
+		case 4: stringxy(iconx+3,140, s, 0);
+	}
+
+}
+
+void analoffmessg(void)
+	 {
+		 shadesqrxy(196, 55, 110, 20, 23, 25, 21);
+		 stringxy(205,62,"ANALYSIS OFF", 0);
+	 }
+
+

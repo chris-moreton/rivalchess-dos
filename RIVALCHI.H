@@ -1,0 +1,10 @@
+struct movelist get_children(struct postype *pos);
+struct movelist q_get_children(struct postype *pos);
+struct movelist capture_get_children(struct postype *pos);
+BOOLEAN no_check_position(struct postype *pos, mvtype mv, struct postype *newpos);
+char check(struct postype *pos, SQUARE kng);
+static void _near change_loc(struct postype *pos, SQUARE from, SQUARE to);
+static void _near kill_loc(struct postype *pos, SQUARE loc);
+void alter(struct postype *pos, mvtype mv, struct postype *newpos);
+char previous_pos(struct postype current, struct gametype game, char times);
+static void _near quicksort(int left, int right);

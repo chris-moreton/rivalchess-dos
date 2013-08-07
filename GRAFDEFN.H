@@ -1,0 +1,1 @@
+#define vidmemstart 0xA0000000
