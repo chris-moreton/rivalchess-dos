@@ -11,4 +11,4 @@ It then evolved into a C++ project, developed using the superb Turbo C++ IDE.
 
 It has a mouse-driven DOS GUI.  The graphics were created by Russell Newman.
 
-![Rival chess for MS-DOS screenshot](http://www.redhotpawn.com/img/rival/rivaldos.gif)
+![Rival chess for MS-DOS screenshot](https://raw.githubusercontent.com/chris-moreton/rival-chess-dos/master/rivalchess.png)
